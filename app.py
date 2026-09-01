@@ -232,6 +232,177 @@ def obtener_noticias_colombia(max_items=3):
     return titulares
 
 
+def _geocode_ciudad(nombre_ciudad):
+    """Convierte un nombre de ciudad a (lat, lon) usando Open-Meteo Geocoding API.
+    No requiere clave. Retorna (lat, lon, display_name) o None.
+    """
+    if not nombre_ciudad:
+        return None
+    try:
+        url = "https://geocoding-api.open-meteo.com/v1/search"
+        params = {
+            "name": nombre_ciudad,
+            "count": 1,
+            "language": "es",
+            "format": "json",
+            "country_code": "CO",
+        }
+        r = requests.get(url, params=params, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+        if not data.get("results"):
+            # Segundo intento sin restricción de país (por si la escribió en otro idioma)
+            params.pop("country_code")
+            r = requests.get(url, params=params, timeout=8)
+            r.raise_for_status()
+            data = r.json()
+            if not data.get("results"):
+                return None
+        first = data["results"][0]
+        return (
+            first["latitude"],
+            first["longitude"],
+            first.get("name", nombre_ciudad),
+            first.get("admin1", ""),
+            first.get("country", ""),
+        )
+    except Exception as e:
+        app.logger.warning(f"Geocoding falló para '{nombre_ciudad}': {e}")
+        return None
+
+
+def obtener_clima(ciudad):
+    """Obtiene el clima actual de una ciudad usando Open-Meteo (gratis, sin clave).
+    Retorna un string en lenguaje natural para voz, o None si falla.
+    """
+    geo = _geocode_ciudad(ciudad)
+    if not geo:
+        return None
+    lat, lon, name, admin1, country = geo
+
+    try:
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+            "timezone": "America/Bogota",
+            "language": "es",
+        }
+        r = requests.get(url, params=params, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        app.logger.warning(f"Open-Meteo falló: {e}")
+        return None
+
+    current = data.get("current")
+    if not current:
+        return None
+
+    temp = current.get("temperature_2m")
+    sensacion = current.get("apparent_temperature")
+    humedad = current.get("relative_humidity_2m")
+    viento = current.get("wind_speed_10m")
+    codigo = current.get("weather_code", 0)
+
+    descripcion = {
+        0: "despejado",
+        1: "mayormente despejado",
+        2: "parcialmente nublado",
+        3: "nublado",
+        45: "con niebla",
+        48: "con niebla escarchante",
+        51: "con llovizna ligera",
+        53: "con llovizna moderada",
+        55: "con llovizna intensa",
+        61: "con lluvia ligera",
+        63: "con lluvia moderada",
+        65: "con lluvia intensa",
+        71: "con nieve ligera",
+        73: "con nieve moderada",
+        75: "con nieve intensa",
+        80: "con chubascos ligeros",
+        81: "con chubascos moderados",
+        82: "con chubascos intensos",
+        95: "con tormenta",
+        96: "con tormenta y granizo",
+        99: "con tormenta fuerte y granizo",
+    }.get(codigo, "")
+
+    lugar = name + (f", {admin1}" if admin1 and admin1 != name else "")
+    partes = [f"En {lugar}"]
+    if temp is not None:
+        partes.append(f"la temperatura es de {round(temp)} grados")
+    if sensacion is not None and abs(sensacion - temp) > 2:
+        partes.append(f"se siente como {round(sensacion)} grados")
+    if descripcion:
+        partes.append(f"el cielo está {descripcion}")
+    if humedad is not None:
+        partes.append(f"con humedad del {round(humedad)} por ciento")
+    if viento is not None and viento > 10:
+        partes.append(f"y viento de {round(viento)} kilómetros por hora")
+
+    frase = ", ".join(partes) + "."
+    if codigo in (51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99):
+        frase += " Le recomiendo llevar paraguas."
+    elif temp is not None and temp <= 18:
+        frase += " Le recomiendo llevar un saquito."
+    elif temp is not None and temp >= 28:
+        frase += " Le recomiendo llevar ropa ligera y tomar agua."
+
+    return frase
+
+
+def obtener_indicadores_economicos():
+    """Obtiene tasas de cambio usando open.er-api.com (gratis, sin clave).
+    Retorna un dict con 'usd_cop', 'eur_cop' y 'fecha', o None si falla.
+    """
+    try:
+        url = "https://open.er-api.com/v6/latest/USD"
+        r = requests.get(url, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+        if data.get("result") != "success":
+            return None
+        rates = data.get("rates", {})
+        usd_cop = rates.get("COP")
+        eur_cop_rate = rates.get("EUR")
+        if not usd_cop:
+            return None
+        eur_en_cop = None
+        if eur_cop_rate and eur_cop_rate > 0:
+            eur_en_cop = usd_cop / eur_cop_rate
+        return {
+            "usd_cop": usd_cop,
+            "eur_cop": eur_en_cop,
+            "fecha": data.get("time_last_update_utc", ""),
+        }
+    except Exception as e:
+        app.logger.warning(f"Indicadores económicos fallaron: {e}")
+        return None
+
+
+def obtener_precio_cafe():
+    """Obtiene el precio interno de referencia del café en Colombia.
+    Usa datos abiertos de datos.gov.co. Retorna {precio, fecha} o None.
+    """
+    try:
+        url = "https://www.datos.gov.co/resource/32sa-8pi3.json"
+        params = {"$limit": 1}
+        r = requests.get(url, params=params, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+        if data and len(data) > 0:
+            precio = data[0].get("valor")
+            fecha = data[0].get("vigenciadesde", "")
+            if precio:
+                return {"precio": precio, "fecha": fecha}
+    except Exception as e:
+        app.logger.warning(f"Precio del café falló: {e}")
+    return None
+
+
 @app.before_request
 def log_config():
     app.logger.info(
@@ -593,6 +764,32 @@ def chat():
         return jsonify({"response": "Disculpe, tuve un problema técnico. ¿Podría repetir su mensaje, por favor?", "end_call": False, "buttons": None, "step": "error"})
 
 
+def _delegar_al_llm(message, nombre, ciudad, contexto_adicional=""):
+    """Delega al LLM una pregunta que no podemos responder con datos locales.
+    Combina el contexto base del adulto mayor con un contexto adicional
+    específico del tema. Retorna un string con la respuesta (nunca None).
+    """
+    context = (
+        f"Usuario adulto mayor: {nombre}. "
+        f"Ciudad: {ciudad or 'no indicada'}. "
+        "Conversación por voz. Responde con calidez, paciencia, sin tecnicismos. "
+        "Máximo 2-3 frases en español."
+    )
+    if contexto_adicional:
+        context = context + "\n\n" + contexto_adicional
+    try:
+        llm_resp = get_llm_response(message, context=context)
+        if llm_resp:
+            return llm_resp
+    except Exception as e:
+        app.logger.error(f"LLM error en _delegar_al_llm: {e}")
+    # Fallback final (si no hay LLM configurado o falló)
+    return (
+        f"Disculpe, no alcancé a entender bien. "
+        f"¿Podría repetirlo con calma, por favor, {nombre or 'amigo'}?"
+    )
+
+
 def _responder_conversacion_libre(state, message):
     """Responde en el modo conversación libre de IAM.
     Primero intenta resolver la intención sin LLM (fecha, hora, etc.).
@@ -618,26 +815,98 @@ def _responder_conversacion_libre(state, message):
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "clima":
-        response = (
-            f"Disculpe, en este momento no tengo cómo consultar el clima de {ciudad or 'su ciudad'}. "
-            "Más adelante podré contarle la temperatura y si va a llover. "
-            f"¿Le puedo ayudar con algo más, {nombre}?"
+        if not ciudad:
+            response = "Con gusto le cuento el clima. ¿En qué ciudad se encuentra?"
+            save_conversation(response, "conversacion_libre", message)
+            return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+        try:
+            clima_texto = obtener_clima(ciudad)
+            if clima_texto:
+                response = clima_texto
+                save_conversation(response, "conversacion_libre", message)
+                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+        except Exception as e:
+            app.logger.warning(f"obtener_clima falló: {e}")
+        # Si la API falla, delegamos al LLM
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                f"El usuario pregunta por el clima de {ciudad}. "
+                "No tienes acceso a datos meteorológicos en tiempo real, así que "
+                "responde con amabilidad: explica que no pudiste consultar el clima "
+                "ahora, sugiere cómo enterarse (sintonizar noticiero, salir un momento), "
+                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
+                "lenguaje cálido y sin tecnicismos."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
-    if intencion in ("dolar", "euro", "cafe"):
-        response = (
-            "Por ahora no tengo el dato actualizado del precio. "
-            "Le recomiendo consultar la página del Banco de la República o su noticiero de confianza. "
-            "En cuanto pueda conectarme al servicio, se lo cuento con gusto. "
-            "¿Hay algo más en lo que le pueda ayudar?"
+    if intencion in ("dolar", "euro"):
+        try:
+            data = obtener_indicadores_economicos()
+            if data:
+                if intencion == "dolar":
+                    usd = round(data["usd_cop"])
+                    response = (
+                        f"El dólar hoy está en {usd:,} pesos colombianos. "
+                        "Es la tasa de referencia del mercado."
+                    )
+                else:
+                    eur = round(data["eur_cop"])
+                    response = (
+                        f"El euro hoy está en {eur:,} pesos colombianos."
+                    )
+                save_conversation(response, "conversacion_libre", message)
+                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+        except Exception as e:
+            app.logger.warning(f"obtener_indicadores falló: {e}")
+        nombre_moneda = "dólar" if intencion == "dolar" else "euro"
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                f"El usuario pregunta por el precio del {nombre_moneda} en pesos colombianos. "
+                "No tienes acceso a tasas de cambio en tiempo real. Responde con amabilidad: "
+                "explica que no pudiste consultar el precio ahora, recomienda consultar el "
+                "Banco de la República, y pregunta si hay algo más en lo que puedas ayudar. "
+                "Máximo 2 frases, lenguaje cálido y sin tecnicismos."
+            ),
+        )
+        save_conversation(response, "conversacion_libre", message)
+        return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+
+    if intencion == "cafe":
+        try:
+            data = obtener_precio_cafe()
+            if data:
+                precio = data["precio"]
+                fecha = data.get("fecha", "")
+                response = (
+                    f"El precio interno de referencia del café en Colombia está "
+                    f"en {precio} pesos por kilo. Es el precio que publica la "
+                    "Federación Nacional de Cafeteros."
+                )
+                if fecha:
+                    response += f" Dato del {fecha}."
+                save_conversation(response, "conversacion_libre", message)
+                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+        except Exception as e:
+            app.logger.warning(f"obtener_precio_cafe falló: {e}")
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario pregunta por el precio del café en Colombia. "
+                "No tienes acceso al precio de referencia en tiempo real. "
+                "Responde con amabilidad: explica que no pudiste consultar el precio ahora, "
+                "recomienda consultar la Federación Nacional de Cafeteros, "
+                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
+                "lenguaje cálido y sin tecnicismos."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "noticias":
-        # Intentar obtener titulares reales de Google News RSS (Colombia).
         try:
             titulares = obtener_noticias_colombia(max_items=3)
             if titulares:
@@ -646,19 +915,22 @@ def _responder_conversacion_libre(state, message):
                 for i, t in enumerate(titulares, 1):
                     partes.append(f"{i}. {t}")
                 response = " ".join(partes)
-            else:
-                response = (
-                    "Disculpe, en este momento no pude consultar las noticias. "
-                    "Le recomiendo sintonizar Caracol Radio o RCN Noticias para "
-                    "enterarse de lo más importante del día. "
-                    "¿Le puedo ayudar con algo más?"
-                )
+                save_conversation(response, "conversacion_libre", message)
+                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
         except Exception as e:
             app.logger.error(f"Error al obtener noticias: {e}")
-            response = (
-                "Disculpe, no alcancé a consultar las noticias en este momento. "
-                "¿Quiere que le cuente sobre otro tema, como el clima o la hora?"
-            )
+        # Si no hay titulares o falló la API, delegamos al LLM
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario pregunta por las noticias de hoy en Colombia. "
+                "No tienes acceso a titulares en tiempo real. Responde con amabilidad: "
+                "explica que no pudiste consultar las noticias ahora, recomienda sintonizar "
+                "Caracol Radio o RCN Noticias para enterarse de lo más importante del día, "
+                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
+                "lenguaje cálido y sin tecnicismos."
+            ),
+        )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
