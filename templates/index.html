@@ -903,7 +903,12 @@
                 <div class="online-badge">En línea</div>
                 <div class="avatar-container">
                     <div class="avatar">
-                        <img src="https://uniap.online/agent/interfaz.gif" alt="IAM" loading="eager" decoding="sync" crossorigin="anonymous"/>
+                        <img id="avatarGif"
+                                 src="https://uniap.online/agent/interfaz.gif"
+                                 alt="IAM"
+                                 loading="eager"
+                                 decoding="sync"
+                                 onerror="this.onerror=null; this.src='/interfaz.gif?v=' + Date.now();"/>
                     </div>
                     <div class="pulse-rings" id="pulseRings">
                         <div class="pulse-ring"></div>
