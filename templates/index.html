@@ -778,7 +778,7 @@
             </div>
             
             <div class="profile-section">
-                <div class="online-badge">En lÃ­nea</div>
+                <div class="online-badge">En línea</div>
                 <div class="avatar-container">
                     <div class="avatar">
                         <img src="/interfaz.gif?v=1" alt="IAM" loading="eager" decoding="sync"/>
@@ -1056,7 +1056,7 @@
             .catch(error => {
                 hideTyping();
                 document.getElementById('sendBtn').disabled = false;
-                addMessage('Error de conexiÃ³n. Verifica tu internet.', 'bot');
+                addMessage('Error de conexión. Verifica tu internet.', 'bot');
             });
         }
         
@@ -1101,7 +1101,7 @@
             })
             .catch(error => {
                 hideTyping();
-                addMessage('Error de conexiÃ³n. Verifica tu internet.', 'bot');
+                addMessage('Error de conexión. Verifica tu internet.', 'bot');
             });
         }
         
@@ -1123,7 +1123,7 @@
             var files = Array.from(event.target.files);
             callSelectedFiles = callSelectedFiles.concat(files);
             renderUploadPreview('call');
-            sendCallMessage('He adjuntado mis pruebas. Por favor, continue con la descripciÃ³n de mi caso.');
+            sendCallMessage('He adjuntado mis pruebas. Por favor, continue con la descripción de mi caso.');
         }
         
         function renderUploadPreview(mode) {
@@ -1317,7 +1317,7 @@
                 phoneWaves.classList.remove('ringing');
                 phoneWaves.classList.add('connected');
                 document.getElementById('startCallBtn').style.background = '#ef4444';
-                document.getElementById('statusIndicator').textContent = 'IAM estÃ¡ escuchando...';
+                document.getElementById('statusIndicator').textContent = 'IAM está escuchando...';
                 setWaveformState('speaking');
                 sendCallMessage('', 'nueva_llamada');
             }, 3200);
@@ -1429,7 +1429,7 @@
             })
             .catch(function() {
                 if (!isCalling) return;
-                showError("Error de conexiÃ³n.");
+                showError("Error de conexión.");
                 callPromptRetry();
             });
         }
@@ -1461,7 +1461,7 @@
             })
             .catch(function() {
                 if (!isCalling) return;
-                showError("Error de conexiÃ³n.");
+                showError("Error de conexión.");
                 callPromptRetry();
             });
         }
@@ -1493,7 +1493,7 @@
             stopRingtone();
             setWaveformState('speaking');
             setTranscript(text);
-            document.getElementById('statusIndicator').textContent = "IAM estÃ¡ hablando...";
+            document.getElementById('statusIndicator').textContent = "IAM está hablando...";
             
             fetch(SPEAK_API_URL, {
                 method: 'POST',
@@ -1513,7 +1513,7 @@
                         if (!isCalling) return;
                         if (endCallAfter) { endCall(); return; }
                         if (hasButtons) {
-                            document.getElementById('statusIndicator').textContent = "Seleccione una opciÃ³n";
+                            document.getElementById('statusIndicator').textContent = "Seleccione una opción";
                         } else {
                             callBeepThenListen();
                         }
@@ -1525,7 +1525,7 @@
                         if (!isCalling) return;
                         if (endCallAfter) { endCall(); return; }
                         if (hasButtons) {
-                            document.getElementById('statusIndicator').textContent = "Seleccione una opciÃ³n";
+                            document.getElementById('statusIndicator').textContent = "Seleccione una opción";
                         } else {
                             callBeepThenListen();
                         }
@@ -1537,7 +1537,7 @@
                         if (!isCalling) return;
                         if (endCallAfter) { endCall(); return; }
                         if (hasButtons) {
-                            document.getElementById('statusIndicator').textContent = "Seleccione una opciÃ³n";
+                            document.getElementById('statusIndicator').textContent = "Seleccione una opción";
                         } else {
                             callBeepThenListen();
                         }
@@ -1547,7 +1547,7 @@
                     if (!isCalling) return;
                     if (endCallAfter) { endCall(); return; }
                     if (hasButtons) {
-                        document.getElementById('statusIndicator').textContent = "Seleccione una opciÃ³n";
+                        document.getElementById('statusIndicator').textContent = "Seleccione una opción";
                     } else {
                         callBeepThenListen();
                     }
@@ -1559,7 +1559,7 @@
                 if (!isCalling) return;
                 if (endCallAfter) { endCall(); return; }
                 if (hasButtons) {
-                    document.getElementById('statusIndicator').textContent = "Seleccione una opciÃ³n";
+                    document.getElementById('statusIndicator').textContent = "Seleccione una opción";
                 } else {
                     callBeepThenListen();
                 }
@@ -1635,11 +1635,11 @@
                 if (event.error === 'no-speech') {
                     callPromptRetry();
                 } else if (event.error === 'not-allowed') {
-                    showError("Permiso de micrÃ³fono denegado. Activa el micrÃ³fono en tu navegador.");
-                    setTranscript("Permiso de micrÃ³fono requerido");
+                    showError("Permiso de micrófono denegado. Activa el micrófono en tu navegador.");
+                    setTranscript("Permiso de micrófono requerido");
                     setWaveformState('off');
                 } else if (event.error === 'network') {
-                    showError("Error de red. Verifica tu conexiÃ³n a internet.");
+                    showError("Error de red. Verifica tu conexión a internet.");
                     setTranscript("Error de red");
                     setWaveformState('off');
                 } else if (event.error !== 'aborted') {
@@ -1668,8 +1668,8 @@
         
         function callPromptRetry() {
             if (!isCalling) return;
-            setTranscript("No te escuchÃ© bien...");
-            callSpeak("No te escuchÃ© bien. Por favor, despuÃ©s de la seÃ±al pronuncia claramente el dato solicitado.", false, false);
+            setTranscript("No te escuché bien...");
+            callSpeak("No te escuché bien. Por favor, indica el dato después de la señal.", false, false);
         }
         
         function startListeningTimeout() {
