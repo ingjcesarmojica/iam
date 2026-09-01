@@ -104,38 +104,12 @@ def clasificar_intencion(texto):
 PASOS = {
     "saludo_inicial": {
         "id": "saludo_inicial",
-        "siguiente": "preguntar_nombre",
+        "siguiente": "conversacion_libre",
         "mensaje": (
-            "Buenas {momento_del_dia}, yo soy IAM, su asistente de voz. "
-            "Estoy aquí para acompañarle con la tecnología del día a día. "
-            "¿Con quién tengo el gusto de hablar?"
+            "¡Hola! Qué gusto saludarte. Dime, ¿en qué te puedo colaborar hoy?"
         ),
         "validar": None,
         "botones": None,
-    },
-    "preguntar_nombre": {
-        "id": "preguntar_nombre",
-        "siguiente": "preguntar_ciudad",
-        "mensaje": (
-            "Mucho gusto, {nombre}. Es un placer acompañarle. "
-            "Para poder ayudarle mejor, ¿me podría decir en qué ciudad vive?"
-        ),
-        "validar": "nombre",
-        "botones": None,
-        "campo": "caller_name",
-    },
-    "preguntar_ciudad": {
-        "id": "preguntar_ciudad",
-        "siguiente": "ofrecer_ayuda",
-        "mensaje": (
-            "Perfecto, {nombre}, entonces le ayudaré con lo que necesite en {ciudad}. "
-            "Puedo contarle qué día es hoy, el clima, cómo está el dólar, las noticias, "
-            "ponerle música, sintonizar la radio o el canal de televisión que quiera. "
-            "¿En qué le puedo ayudar?"
-        ),
-        "validar": "ciudad",
-        "botones": None,
-        "campo": "caller_ciudad",
     },
     "ofrecer_ayuda": {
         "id": "ofrecer_ayuda",
@@ -155,7 +129,7 @@ PASOS = {
         "id": "despedida",
         "siguiente": None,
         "mensaje": (
-            "Ha sido un gusto acompañarle, {nombre}. "
+            "Ha sido un gusto acompañarle. "
             "Recuerde que aquí estoy siempre que me necesite. "
             "Que tenga un día muy bonito y no olvide tomar sus aguas."
         ),

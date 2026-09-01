@@ -471,7 +471,6 @@ def chat():
             PASOS,
             obtener_paso,
             formatear_mensaje,
-            validar_respuesta,
             obtener_momento_del_dia,
             clasificar_intencion,
         )
@@ -522,58 +521,12 @@ def chat():
                 save_conversation(response, "conversacion_libre", message)
                 return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
-        # === PASO: saludo_inicial -> captura nombre del usuario ===
+        # === PASO: saludo_inicial -> pasa directo a conversación libre ===
         if paso_actual_id == "saludo_inicial":
-            nombre_usuario = (message or "").strip()
-            if not nombre_usuario:
-                response = (
-                    "Disculpe, no alcancé a escuchar bien. "
-                    "¿Me podría repetir su nombre con calma, por favor?"
-                )
-                save_conversation(response, "preguntar_nombre", message)
-                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "preguntar_nombre"})
-            state["caller_name"] = nombre_usuario
-            state["paso_actual"] = "preguntar_ciudad"
-            save_call_state(state)
-            paso = obtener_paso("preguntar_nombre")
-            response = formatear_mensaje(paso, {"nombre": state["caller_name"]})
-            save_conversation(response, "preguntar_ciudad", message)
-            return jsonify({"response": response, "end_call": False, "buttons": None, "step": "preguntar_ciudad"})
-
-        # === PASO: preguntar_nombre -> pide ciudad ===
-        if paso_actual_id == "preguntar_nombre":
-            valido, resultado = validar_respuesta(paso_actual, message)
-            if not valido:
-                return jsonify({"response": resultado, "end_call": False, "buttons": None, "step": "preguntar_nombre"})
-            state["caller_name"] = resultado
-            state["paso_actual"] = "preguntar_ciudad"
-            save_call_state(state)
-            paso_ciudad = obtener_paso("preguntar_ciudad")
-            response = formatear_mensaje(paso_ciudad, {"nombre": state["caller_name"]})
-            save_conversation(response, "preguntar_ciudad", message)
-            return jsonify({"response": response, "end_call": False, "buttons": None, "step": "preguntar_ciudad"})
-
-        # === PASO: preguntar_ciudad -> ofrece ayuda ===
-        if paso_actual_id == "preguntar_ciudad":
-            valido, resultado = validar_respuesta(paso_actual, message)
-            if not valido:
-                return jsonify({"response": resultado, "end_call": False, "buttons": None, "step": "preguntar_ciudad"})
-            state["caller_ciudad"] = resultado
             state["paso_actual"] = "conversacion_libre"
             save_call_state(state)
-            paso_oferta = obtener_paso("preguntar_ciudad")
-            datos = obtener_estado_chat()
-            response = formatear_mensaje(paso_oferta, datos)
-            save_conversation(response, "conversacion_libre", message)
-            guardar_usuario({
-                "nombre": state["caller_name"],
-                "email": "",
-                "telefono": "",
-                "ciudad": state["caller_ciudad"],
-                "preferencias": "",
-                "paso_actual": "conversacion_libre",
-            })
-            return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+            # Cualquier mensaje inicial se trata como la primera pregunta del usuario.
+            return _responder_conversacion_libre(state, message)
 
         # === PASO: conversacion_libre / consulta_legal (alias) -> LLM ===
         if paso_actual_id in ["conversacion_libre", "consulta_legal", "ofrecer_ayuda"]:
