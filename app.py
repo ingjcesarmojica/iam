@@ -767,26 +767,92 @@ def chat():
 def _delegar_al_llm(message, nombre, ciudad, contexto_adicional=""):
     """Delega al LLM una pregunta que no podemos responder con datos locales.
     Combina el contexto base del adulto mayor con un contexto adicional
-    específico del tema. Retorna un string con la respuesta (nunca None).
+    específico del tema. Retorna siempre un string útil (nunca vacío),
+    incluso si el LLM falla o devuelve una respuesta débil.
     """
-    context = (
-        f"Usuario adulto mayor: {nombre}. "
-        f"Ciudad: {ciudad or 'no indicada'}. "
-        "Conversación por voz. Responde con calidez, paciencia, sin tecnicismos. "
-        "Máximo 2-3 frases en español."
+    # Prompt base humanizado para el LLM
+    base_prompt = (
+        "Eres IAM, un asistente de voz cálido y paciente para personas mayores "
+        "en Colombia. Tu usuario es un adulto mayor, así que habla con calma, "
+        "con respeto y sin tecnicismos. Nunca uses anglicismos ni jerga digital "
+        "a menos que sean estrictamente necesarios. Si no sabes la respuesta "
+        "exacta, NO inventes datos: responde con honestidad, sugiere dónde puede "
+        "consultar (un familiar, un noticiero, una farmacia) y pregunta si hay "
+        "algo más en lo que puedas ayudar. Máximo 2-3 frases por respuesta, "
+        "siempre en español. "
+        f"El usuario se llama {nombre or 'amigo'}. "
+        f"Ciudad del usuario: {ciudad or 'no indicada'}. "
+        "Conversación por voz (no hay pantalla). "
     )
     if contexto_adicional:
-        context = context + "\n\n" + contexto_adicional
+        base_prompt += "\n\nContexto específico para esta pregunta: " + contexto_adicional
+
+    # Mensajes que indican que el LLM "no pudo" o no respondió nada útil.
+    respuestas_debiles = (
+        "no puedo", "no puedo ayudar", "no estoy seguro", "no tengo información",
+        "no dispongo", "como modelo de lenguaje", "as an ai", "as a language model",
+        "i cannot", "i don't know", "i'm not able",
+    )
+
+    llm_resp = ""
     try:
-        llm_resp = get_llm_response(message, context=context)
-        if llm_resp:
-            return llm_resp
+        llm_resp = get_llm_response(message, context=base_prompt) or ""
     except Exception as e:
         app.logger.error(f"LLM error en _delegar_al_llm: {e}")
-    # Fallback final (si no hay LLM configurado o falló)
+
+    # Verificar si la respuesta es útil
+    texto_limpio = llm_resp.strip()
+    es_debil = (
+        not texto_limpio
+        or len(texto_limpio) < 20
+        or any(p in texto_limpio.lower() for p in respuestas_debiles)
+    )
+
+    if es_debil:
+        # El LLM no dio nada útil: generamos una respuesta amable con sugerencias
+        app.logger.info(
+            f"LLM respuesta debil o vacia, usando fallback amable. "
+            f"Pregunta: '{message[:80]}'"
+        )
+        return _respuesta_amable_fallback(message, nombre, contexto_adicional)
+
+    return texto_limpio
+
+
+def _respuesta_amable_fallback(message, nombre, contexto_adicional=""):
+    """Respuesta de fallback cuando el LLM falla o da una respuesta débil.
+    Siempre devuelve algo cálido y útil para el adulto mayor.
+    """
+    nombre = nombre or "amigo"
+    # Identificar el tema por el contexto adicional
+    tema = ""
+    if "clima" in contexto_adicional.lower():
+        tema = "el clima"
+    elif "dólar" in contexto_adicional.lower() or "euro" in contexto_adicional.lower():
+        tema = "el precio del"
+    elif "café" in contexto_adicional.lower() or "cafe" in contexto_adicional.lower():
+        tema = "el precio del café"
+    elif "noticias" in contexto_adicional.lower():
+        tema = "las noticias"
+    elif "música" in contexto_adicional.lower() or "musica" in contexto_adicional.lower():
+        tema = "la música"
+    elif "radio" in contexto_adicional.lower():
+        tema = "la radio"
+    elif "tv" in contexto_adicional.lower() or "televisión" in contexto_adicional.lower():
+        tema = "la televisión"
+
+    if tema:
+        return (
+            f"Disculpe, {nombre}, no alcancé a consultar {tema} en este momento. "
+            f"Le recomiendo sintonizar un noticiero de confianza o preguntarle a un familiar. "
+            f"¿Le puedo ayudar con algo más?"
+        )
+
+    # Fallback genérico para preguntas generales no reconocidas
     return (
-        f"Disculpe, no alcancé a entender bien. "
-        f"¿Podría repetirlo con calma, por favor, {nombre or 'amigo'}?"
+        f"Disculpe, {nombre}, no alcancé a encontrar una respuesta exacta. "
+        f"Le recomiendo consultarlo con un familiar de confianza o en su noticiero. "
+        f"Mientras tanto, ¿hay algo más en lo que le pueda colaborar?"
     )
 
 
@@ -935,66 +1001,92 @@ def _responder_conversacion_libre(state, message):
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "musica":
-        response = (
-            "Con gusto le pongo música. Dígale al dispositivo el género o el artista que le gusta, "
-            "por ejemplo: boleros, música clásica, o el nombre de su cantante favorito. "
-            "¿Cuál prefiere?"
+        # Delegamos al LLM para que sugiera algo basado en lo que pide el usuario.
+        # Si el LLM no devuelve nada útil, fallback amable.
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario quiere música. IAM no controla un dispositivo de música, "
+                "pero puede conversar sobre géneros, cantantes o canciones. "
+                "Si menciona un género o artista, comenta con cariño lo que sabe y sugiere "
+                "que le pida a un familiar que le ponga esa música en el dispositivo. "
+                "Si solo dice 'quiero música', sugiere amablemente algunos géneros "
+                "populares entre adultos mayores en Colombia (boleros, música andina, "
+                "tropical clásica, baladas) y pregunta cuál le gustaría."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "radio":
-        response = (
-            "Claro que sí. Dígale el nombre de la emisora que le gusta, "
-            "por ejemplo la de noticias o la que pone música del recuerdo. "
-            "¿Cuál sintonizamos?"
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario quiere sintonizar una emisora de radio. IAM no controla "
+                "el radio, pero puede conversar sobre emisoras populares en Colombia "
+                "(Caracol Radio, RCN Radio, La W, Radiónica, Bésame, Oxígeno, Tropicana). "
+                "Si menciona una, confirma con cariño y sugiere pedirle a un familiar "
+                "que la sintonice. Si solo dice 'quiero radio', sugiere algunas opciones "
+                "populares según el gusto (noticias, boleros, música del recuerdo) y "
+                "pregunta cuál prefiere."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "tv":
-        response = (
-            "Con gusto le ayudo con la televisión. Dígale el nombre del canal, "
-            "por ejemplo Caracol, RCN, o el canal de noticias. "
-            "¿Cuál quiere ver?"
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario quiere ver un canal de televisión. IAM no controla la TV, "
+                "pero puede conversar sobre canales colombianos populares (Caracol, RCN, "
+                "Canal 1, Señal Colombia). Si menciona uno, confirma con cariño y sugiere "
+                "pedirle a un familiar que lo sintonice. Si solo dice 'quiero ver tele' o "
+                "'poner la tele', sugiere algunas opciones (Caracol, RCN, canal de "
+                "noticias) y pregunta cuál prefiere."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "conversacion":
-        response = (
-            f"Con mucho gusto le acompaño, {nombre}. "
-            "Cuénteme, ¿qué le gustaría conversar hoy? Estoy aquí para escucharle con calma."
+        response = _delegar_al_llm(
+            message, nombre, ciudad,
+            contexto_adicional=(
+                "El usuario quiere conversar contigo (IAM). Es una persona mayor en "
+                "Colombia. Acompáñale con calidez, sin tecnicismos. Si menciona soledad, "
+                "tristeza o que se siente solo, valida sus sentimientos, recuérdale con "
+                "cariño mantener contacto con su familia y amigos, y pregunta sobre qué "
+                "le gustaría conversar. Si habla de algo específico (familia, recuerdos, "
+                "salud, pasatiempos), conversa con naturalidad. Máximo 2-3 frases."
+            ),
         )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     # ── Si no se reconoció intención, delegamos al LLM con contexto ────
-    context = (
-        f"Usuario adulto mayor: {nombre}. "
-        f"Ciudad: {ciudad}. "
-        "Conversación por voz. Responde con calidez, paciencia, sin tecnicismos."
-    )
-    rag_response = None
+    # Primero intentamos enriquecer con RAG si está disponible y hay documentos.
+    rag_context_text = ""
     if RAG_AVAILABLE:
         try:
             docs = search_knowledge(message, n_results=3)
             if docs:
                 rag_parts = [f"[Fuente: {d['source']}]\n{d['text']}" for d in docs]
-                rag_context = "\n---\n".join(rag_parts)
-                llm_resp = get_llm_response(
-                    message, context=f"{context}\n\nConocimiento relevante:\n{rag_context}"
-                )
-                rag_response = llm_resp if llm_resp else None
+                rag_context_text = "\n---\n".join(rag_parts)
         except Exception as e:
             app.logger.error(f"RAG error: {e}")
-    if rag_response:
-        response = rag_response
-    else:
-        llm_resp = get_llm_response(message, context=context)
-        response = llm_resp if llm_resp else (
-            f"Disculpe, no alcancé a entender bien. ¿Podría repetirlo con calma, por favor, {nombre}?"
+
+    contexto_extra = ""
+    if rag_context_text:
+        contexto_extra = (
+            "Conocimiento relevante encontrado en la base de IAM "
+            "(úsalo solo si aplica a la pregunta, si no, ignóralo):\n"
+            + rag_context_text
         )
+
+    # Llamamos a _delegar_al_llm que se encarga de detectar respuestas débiles
+    # y aplicar el fallback amable automáticamente.
+    response = _delegar_al_llm(message, nombre, ciudad, contexto_adicional=contexto_extra)
     save_conversation(response, "conversacion_libre", message)
     return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
