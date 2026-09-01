@@ -67,25 +67,27 @@
         }
         
         .avatar-container {
-            width: 110px;
-            height: 110px;
-            margin: 0 auto 10px;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 24px;
             position: relative;
+            z-index: 2;
         }
 
         .avatar {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            border: 3px solid #85B7EB;
-            background: #e2e8f0;
+            border: 4px solid #85B7EB;
+            background: #03203f;
             position: relative;
             z-index: 2;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
             transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
             overflow: hidden;
         }
 
+        /* El GIF ocupa todo el círculo, sin recortes ni deformaciones */
         .avatar img {
             display: block;
             width: 100%;
@@ -93,6 +95,21 @@
             object-fit: cover;
             object-position: center;
             border-radius: 50%;
+            background: transparent;
+            /* Evita que el alt-text se vea mientras carga el GIF */
+            color: transparent;
+            font-size: 0;
+            line-height: 0;
+        }
+
+        /* Los pulse-rings quedan detrás del avatar */
+        .pulse-rings {
+            z-index: 1 !important;
+        }
+
+        /* Separación adicional entre el avatar y los textos del perfil */
+        .profile-name {
+            margin-top: 20px !important;
         }
 
         /* Estado por defecto: en línea, sin interacción */
@@ -764,7 +781,7 @@
                 <div class="online-badge">En lÃ­nea</div>
                 <div class="avatar-container">
                     <div class="avatar">
-                        <img src="/interfaz.gif" alt="IAM - Asistente del Adulto Mayor"/>
+                        <img src="/interfaz.gif?v=1" alt="IAM" loading="eager" decoding="sync"/>
                     </div>
                     <div class="pulse-rings" id="pulseRings">
                         <div class="pulse-ring"></div>
