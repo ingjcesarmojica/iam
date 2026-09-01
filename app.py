@@ -181,6 +181,57 @@ async def generate_edge_tts(text, voice=None):
     return base64.b64encode(audio_data).decode("utf-8")
 
 
+def obtener_noticias_colombia(max_items=3):
+    """Consulta Google News RSS para Colombia y devuelve los titulares principales.
+
+    No requiere clave de API. Usa el feed público de Google News.
+    Retorna una lista de strings con los titulares limpios.
+    Si falla (sin internet, RSS caido, etc.), retorna [].
+    """
+    feed_url = (
+        "https://news.google.com/rss/headlines/section/topic/NATION"
+        "?hl=es-419&gl=CO&ceid=CO:es-419"
+    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        )
+    }
+    try:
+        resp = requests.get(feed_url, headers=headers, timeout=8)
+        resp.raise_for_status()
+    except Exception as e:
+        app.logger.warning(f"No se pudo obtener RSS de Google News: {e}")
+        return []
+
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(resp.content)
+    except Exception as e:
+        app.logger.warning(f"RSS de Google News malformado: {e}")
+        return []
+
+    titulares = []
+    # Google News RSS: cada <item> tiene <title>, <link>, <pubDate>, <source>
+    for item in root.iter("item"):
+        title_el = item.find("title")
+        if title_el is None or not title_el.text:
+            continue
+        title = title_el.text.strip()
+        # Limpiar sufijos típicos: " - Caracol Radio", " - El Tiempo", etc.
+        # para que la lectura por voz sea natural.
+        for sep in [" - ", " – ", " — "]:
+            if sep in title:
+                title = title.rsplit(sep, 1)[0].strip()
+                break
+        titulares.append(title)
+        if len(titulares) >= max_items:
+            break
+    return titulares
+
+
 @app.before_request
 def log_config():
     app.logger.info(
@@ -586,11 +637,28 @@ def _responder_conversacion_libre(state, message):
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "noticias":
-        response = (
-            "En este momento no tengo cómo leerle las noticias del día. "
-            "Cuando tenga esa conexión lista, le contaré las más importantes en un par de frases. "
-            "¿Quiere que le ayude con otra cosa mientras tanto?"
-        )
+        # Intentar obtener titulares reales de Google News RSS (Colombia).
+        try:
+            titulares = obtener_noticias_colombia(max_items=3)
+            if titulares:
+                intro = "Estas son las noticias más importantes de hoy en Colombia:"
+                partes = [intro]
+                for i, t in enumerate(titulares, 1):
+                    partes.append(f"{i}. {t}")
+                response = " ".join(partes)
+            else:
+                response = (
+                    "Disculpe, en este momento no pude consultar las noticias. "
+                    "Le recomiendo sintonizar Caracol Radio o RCN Noticias para "
+                    "enterarse de lo más importante del día. "
+                    "¿Le puedo ayudar con algo más?"
+                )
+        except Exception as e:
+            app.logger.error(f"Error al obtener noticias: {e}")
+            response = (
+                "Disculpe, no alcancé a consultar las noticias en este momento. "
+                "¿Quiere que le cuente sobre otro tema, como el clima o la hora?"
+            )
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
