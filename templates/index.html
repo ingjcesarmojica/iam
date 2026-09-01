@@ -15,50 +15,96 @@
         
         body {
             font-family: 'Inter', sans-serif;
-            background: #03203f;
+            background: linear-gradient(135deg, #1a0a3e 0%, #0d1b4e 50%, #2d1b69 100%);
+            background-size: 200% 200%;
+            animation: bgShift 12s ease infinite;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             color: #ffffff;
         }
-        
+
+        @keyframes bgShift {
+            0%, 100% { background-position: 0% 50%; }
+            50%      { background-position: 100% 50%; }
+        }
+
         .app-container {
             width: 380px;
             height: 700px;
-            background: #03203f;
-            border: 1px solid #185FA5;
+            background: linear-gradient(160deg, rgba(26, 10, 62, 0.92) 0%, rgba(13, 27, 78, 0.92) 50%, rgba(45, 27, 105, 0.92) 100%);
+            border: 2px solid transparent;
             border-radius: 30px;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            box-shadow:
+                0 0 30px rgba(0, 255, 225, 0.25),
+                0 0 60px rgba(255, 0, 212, 0.15),
+                0 20px 50px rgba(0, 0, 0, 0.5);
             display: flex;
             flex-direction: column;
+            background-clip: padding-box;
         }
-        
+
+        /* Borde neón animado del contenedor principal */
+        .app-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 30px;
+            padding: 2px;
+            background: linear-gradient(135deg, #00ffe1, #aaff00, #ff00d4, #00ffe1);
+            background-size: 300% 300%;
+            animation: neonBorder 8s linear infinite;
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes neonBorder {
+            0%   { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+
         .header {
             text-align: center;
-            padding: 20px 20px 10px;
+            padding: 22px 20px 14px;
             flex-shrink: 0;
+            position: relative;
+            z-index: 1;
         }
-        
+
         .logo-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 15px;
+            margin-bottom: 18px;
         }
-        
-        .scales-icon {
-            width: 24px;
-            height: 24px;
-            margin-right: 8px;
-        }
-        
+
+        /* Quitamos el SVG de balanzas: ya no se usa en el HTML, pero dejamos la
+           regla neutra por si el navegador aún lo referencia */
+        .scales-icon { display: none; }
+
         .logo-text {
-            font-size: 16px;
-            font-weight: 600;
-            color: #ffffff;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #00ffe1 0%, #aaff00 50%, #ff00d4 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            animation: logoShift 6s linear infinite;
+            text-shadow: 0 0 18px rgba(0, 255, 225, 0.35);
+        }
+
+        @keyframes logoShift {
+            0%   { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
         }
         
         .profile-section {
@@ -67,39 +113,78 @@
         }
         
         .avatar-container {
-            width: 160px;
-            height: 160px;
-            margin: 0 auto 24px;
+            width: 220px !important;
+            height: 220px !important;
+            margin: 0 auto 18px !important;
             position: relative;
-            z-index: 2;
+            z-index: 10;
         }
 
+        /* Sin círculo, sin nada que tape el GIF */
         .avatar {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 4px solid #85B7EB;
-            background: #03203f;
+            width: 100% !important;
+            height: 100% !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
             position: relative;
-            z-index: 2;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-            overflow: hidden;
+            z-index: 10;
         }
 
-        /* El GIF ocupa todo el círculo, sin recortes ni deformaciones */
+        /* El GIF animado se muestra plano, grande y siempre visible */
         .avatar img {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center;
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+            object-position: center !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            /* Evita alt-text visible mientras carga */
+            color: transparent !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
+            text-indent: -9999px !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            /* Glow neón alrededor del GIF (no recorta nada) */
+            filter: drop-shadow(0 0 22px rgba(0, 255, 225, 0.55))
+                    drop-shadow(0 0 36px rgba(255, 0, 212, 0.30));
+            animation: avatarBreathe 4s ease-in-out infinite;
+        }
+
+        /* Halo neón rotatorio detrás del avatar */
+        .avatar::before {
+            content: '' !important;
+            position: absolute !important;
+            top: -10% !important;
+            left: -10% !important;
+            right: -10% !important;
+            bottom: -10% !important;
+            width: 120% !important;
+            height: 120% !important;
             border-radius: 50%;
-            background: transparent;
-            /* Evita que el alt-text se vea mientras carga el GIF */
-            color: transparent;
-            font-size: 0;
-            line-height: 0;
+            background: conic-gradient(
+                from 0deg,
+                rgba(0, 255, 225, 0.55),
+                rgba(170, 255, 0, 0.45),
+                rgba(255, 0, 212, 0.55),
+                rgba(0, 255, 225, 0.55)
+            );
+            filter: blur(28px);
+            z-index: -1 !important;
+            animation: neonSpin 6s linear infinite;
+            opacity: 0.85;
+        }
+
+        @keyframes neonSpin {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Los pulse-rings quedan detrás del avatar */
@@ -107,41 +192,53 @@
             z-index: 1 !important;
         }
 
-        /* Separación adicional entre el avatar y los textos del perfil */
+        /* Separación entre avatar y textos del perfil */
         .profile-name {
-            margin-top: 20px !important;
+            margin-top: 14px !important;
         }
 
-        /* Estado por defecto: en línea, sin interacción */
-        .avatar.avatar--idle {
-            border-color: #85B7EB;
-            animation: avatarBreathe 4s ease-in-out infinite;
+        /* Estados del avatar */
+        .avatar.avatar--idle img {
+            filter: drop-shadow(0 0 22px rgba(0, 255, 225, 0.55))
+                    drop-shadow(0 0 36px rgba(255, 0, 212, 0.30));
         }
 
-        /* Estado escuchando: borde verde, pulso suave */
-        .avatar.avatar--listening {
-            border-color: #25d366;
-            box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.25),
-                        0 4px 12px rgba(0, 0, 0, 0.25);
+        .avatar.avatar--listening img {
+            filter: drop-shadow(0 0 26px rgba(170, 255, 0, 0.75))
+                    drop-shadow(0 0 40px rgba(0, 255, 225, 0.50));
             animation: avatarListening 1.6s ease-in-out infinite;
         }
+        .avatar.avatar--listening::before {
+            background: conic-gradient(
+                from 0deg,
+                rgba(170, 255, 0, 0.75),
+                rgba(0, 255, 225, 0.65),
+                rgba(170, 255, 0, 0.75)
+            );
+        }
 
-        /* Estado hablando: borde celeste brillante, escala ligera */
-        .avatar.avatar--speaking {
-            border-color: #38bdf8;
-            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.30),
-                        0 4px 12px rgba(0, 0, 0, 0.25);
+        .avatar.avatar--speaking img {
+            filter: drop-shadow(0 0 28px rgba(255, 0, 212, 0.80))
+                    drop-shadow(0 0 44px rgba(170, 255, 0, 0.55));
             animation: avatarSpeaking 0.9s ease-in-out infinite;
+        }
+        .avatar.avatar--speaking::before {
+            background: conic-gradient(
+                from 0deg,
+                rgba(255, 0, 212, 0.75),
+                rgba(0, 255, 225, 0.65),
+                rgba(255, 0, 212, 0.75)
+            );
         }
 
         @keyframes avatarBreathe {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.04); }
+            50%      { transform: scale(1.04); }
         }
 
         @keyframes avatarListening {
-            0%, 100% { transform: scale(1.00); box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.25), 0 4px 12px rgba(0, 0, 0, 0.25); }
-            50%      { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(37, 211, 102, 0.10), 0 4px 12px rgba(0, 0, 0, 0.25); }
+            0%, 100% { transform: scale(1.00); }
+            50%      { transform: scale(1.06); }
         }
 
         @keyframes avatarSpeaking {
@@ -153,23 +250,25 @@
         
         .online-badge {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: #25d366;
-            color: #ffffff;
+            top: 12px;
+            left: 12px;
+            background: linear-gradient(135deg, rgba(170, 255, 0, 0.95), rgba(0, 255, 225, 0.95));
+            color: #0a0a2a;
             font-size: 9px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 3px 9px;
+            border-radius: 10px;
             white-space: nowrap;
             z-index: 3;
-            border: 2px solid #03203f;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 0 14px rgba(170, 255, 0, 0.6);
             animation: pulseBadge 2s ease-in-out infinite;
         }
-        
+
         @keyframes pulseBadge {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.8; transform: scale(1.05); }
         }
         
         .pulse-rings {
@@ -225,25 +324,26 @@
             left: 0;
             width: 100%;
             height: 100%;
-            border: 2px solid #25d366;
+            border: 2px solid #00ffe1;
             border-radius: 50%;
             animation: phoneWaveAnim 1.5s ease-out infinite;
+            box-shadow: 0 0 14px rgba(0, 255, 225, 0.45);
         }
-        
+
         .phone-wave:nth-child(2) { animation-delay: 0.5s; }
         .phone-wave:nth-child(3) { animation-delay: 1s; }
-        
+
         @keyframes phoneWaveAnim {
             0% { transform: scale(0.5); opacity: 1; }
             100% { transform: scale(1.5); opacity: 0; }
         }
-        
+
         .phone-waves.ringing .phone-wave {
-            border-color: #25d366;
+            border-color: #00ffe1;
         }
-        
+
         .phone-waves.connected .phone-wave {
-            border-color: #ef4444;
+            border-color: #ff00d4;
             animation: none;
             display: none;
         }
@@ -271,9 +371,10 @@
 
         .waveform .bar {
             width: 3px;
-            background: #25d366;
+            background: linear-gradient(180deg, #00ffe1 0%, #ff00d4 100%);
             border-radius: 2px;
             animation: waveAnim 1s ease-in-out infinite;
+            box-shadow: 0 0 6px rgba(0, 255, 225, 0.5);
         }
         .waveform .bar:nth-child(1) { animation-delay: 0s; }
         .waveform .bar:nth-child(2) { animation-delay: 0.1s; }
@@ -288,8 +389,14 @@
             50% { height: 24px; opacity: 1; }
         }
 
-        .waveform.speaking .bar { background: #85B7EB; }
-        .waveform.listening .bar { background: #25d366; }
+        .waveform.speaking .bar {
+            background: linear-gradient(180deg, #ff00d4 0%, #aaff00 100%);
+            box-shadow: 0 0 8px rgba(255, 0, 212, 0.7);
+        }
+        .waveform.listening .bar {
+            background: linear-gradient(180deg, #aaff00 0%, #00ffe1 100%);
+            box-shadow: 0 0 8px rgba(170, 255, 0, 0.7);
+        }
 
         .call-transcript {
             font-size: 11px;
@@ -304,16 +411,24 @@
         }
         
         .profile-name {
-            font-size: 18px;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 2px;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, #00ffe1 0%, #aaff00 50%, #ff00d4 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+            margin-bottom: 4px;
+            text-shadow: 0 0 12px rgba(0, 255, 225, 0.25);
         }
-        
+
         .profile-title {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            color: rgba(170, 255, 0, 0.9);
             font-weight: 500;
+            letter-spacing: 1px;
         }
         
         .mode-toggle {
@@ -327,7 +442,7 @@
         .mode-btn {
             padding: 8px 20px;
             border-radius: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(0, 255, 225, 0.4);
             background: transparent;
             color: rgba(255, 255, 255, 0.7);
             font-size: 13px;
@@ -336,15 +451,17 @@
             transition: all 0.3s ease;
             font-family: 'Inter', sans-serif;
         }
-        
+
         .mode-btn.active {
-            background: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(0, 255, 225, 0.25), rgba(255, 0, 212, 0.25));
             color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.5);
+            border-color: rgba(0, 255, 225, 0.8);
+            box-shadow: 0 0 14px rgba(0, 255, 225, 0.35);
         }
-        
+
         .mode-btn:hover {
-            background: rgba(23, 43, 74, 0.6);
+            background: rgba(0, 255, 225, 0.12);
+            border-color: rgba(0, 255, 225, 0.7);
         }
         
         .content-area {
@@ -468,13 +585,17 @@
         }
         
         .whatsapp-button {
-            background: #25d366;
+            background: linear-gradient(135deg, #00ffe1 0%, #ff00d4 100%);
             color: #ffffff;
+            box-shadow: 0 0 24px rgba(0, 255, 225, 0.5),
+                        0 0 36px rgba(255, 0, 212, 0.35);
         }
-        
+
         .whatsapp-button:hover {
-            background: #128c7e;
-            transform: scale(1.05);
+            background: linear-gradient(135deg, #aaff00 0%, #ff00d4 100%);
+            transform: scale(1.06);
+            box-shadow: 0 0 32px rgba(170, 255, 0, 0.6),
+                        0 0 48px rgba(255, 0, 212, 0.45);
         }
         
         .end-call-button {
@@ -611,24 +732,28 @@
             height: 40px;
             border-radius: 50%;
             border: none;
-            background: #25d366;
+            background: linear-gradient(135deg, #00ffe1 0%, #ff00d4 100%);
             color: #ffffff;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
+            box-shadow: 0 0 14px rgba(0, 255, 225, 0.45);
         }
-        
+
         .send-btn:hover {
-            background: #128c7e;
+            background: linear-gradient(135deg, #aaff00 0%, #ff00d4 100%);
             transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(170, 255, 0, 0.55);
         }
-        
+
         .send-btn:disabled {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+            color: rgba(255, 255, 255, 0.4);
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
         
         .send-btn svg {
@@ -771,9 +896,6 @@
         
         <div class="header">
             <div class="logo-container">
-                <svg class="scales-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2M8 11.5L6.5 16.5L11.5 17.2L13 12.2L8 11.5M16 11.5L13 12.2L14.5 17.2L19.5 16.5L18 11.5L16 11.5Z"/>
-                </svg>
                 <div class="logo-text">IAM</div>
             </div>
             
@@ -1299,7 +1421,7 @@
             callView.classList.add('calling');
             document.getElementById('buttonLabel').textContent = 'Finalizar';
             document.getElementById('statusIndicator').textContent = 'Conectando...';
-            document.getElementById('startCallBtn').style.background = '#25d366';
+            document.getElementById('startCallBtn').style.background = 'linear-gradient(135deg, #00ffe1 0%, #ff00d4 100%)';
             
             const phoneWaves = document.getElementById('phoneWaves');
             phoneWaves.classList.add('active', 'ringing');
@@ -1316,7 +1438,7 @@
                 if (!isCalling) return;
                 phoneWaves.classList.remove('ringing');
                 phoneWaves.classList.add('connected');
-                document.getElementById('startCallBtn').style.background = '#ef4444';
+                document.getElementById('startCallBtn').style.background = 'linear-gradient(135deg, #ff00d4 0%, #aaff00 100%)';
                 document.getElementById('statusIndicator').textContent = 'IAM está escuchando...';
                 setWaveformState('speaking');
                 sendCallMessage('', 'nueva_llamada');
@@ -1333,7 +1455,7 @@
             const callView = document.getElementById('callView');
             callView.classList.remove('calling');
             document.getElementById('buttonLabel').textContent = 'Llamar';
-            document.getElementById('startCallBtn').style.background = '#25d366';
+            document.getElementById('startCallBtn').style.background = 'linear-gradient(135deg, #00ffe1 0%, #ff00d4 100%)';
             document.getElementById('pulseRings').classList.remove('active');
             
             const phoneWaves = document.getElementById('phoneWaves');
