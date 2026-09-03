@@ -544,6 +544,23 @@
             color: #000000;
             border: 1px solid #f5a623;
         }
+
+        /* Mensaje del bot en modo llamada sin texto visible
+           (porque el bot habla por voz). Solo se muestra el boton
+           de speaker para volver a escucharlo. */
+        .call-message.bot.bot-audio-only {
+            background: transparent;
+            color: transparent;
+            border: 1px dashed rgba(255, 255, 255, 0.18);
+            padding: 4px 8px;
+            min-height: 22px;
+        }
+        .call-message.bot.bot-audio-only .speak-btn {
+            opacity: 0.65;
+        }
+        .call-message.bot.bot-audio-only .speak-btn:hover {
+            opacity: 1;
+        }
         
         .call-message.user {
             align-self: flex-end;
@@ -1277,30 +1294,51 @@
         }
         
         function addMessage(text, sender, buttons = null) {
-            const container = document.getElementById('chatMessages');
+            // Detectar si estamos en modo llamada o modo chat. En modo
+            // llamada, el bot habla por voz, así que ocultamos el texto
+            // de su respuesta para no saturar visualmente al adulto
+            // mayor (solo dejamos el botón de speaker y los botones
+            // opcionales si los hay).
+            const inCallMode = (typeof currentMode !== 'undefined' && currentMode === 'call');
+            const containerId = inCallMode ? 'callMessages' : 'chatMessages';
+            const container = document.getElementById(containerId);
             const msg = document.createElement('div');
             const isError = sender === 'bot' && text.startsWith('Por favor, verifica');
             msg.className = isError ? 'message bot error' : `message ${sender}`;
-            
-            const textSpan = document.createElement('span');
-            textSpan.textContent = text;
-            msg.appendChild(textSpan);
-            
+
+            // En modo chat siempre mostramos el texto; en modo llamada
+            // solo lo mostramos si el emisor es el usuario o si es un
+            // mensaje de error que conviene ver.
+            const showText = !inCallMode || sender !== 'bot';
+            if (showText) {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = text;
+                msg.appendChild(textSpan);
+            } else {
+                // Marcamos el contenedor para que tenga un tamaño mínimo
+                // y se vea el botón de speaker aunque no haya texto.
+                msg.classList.add('bot-audio-only');
+                // Guardamos el texto como data-attribute para que esté
+                // disponible si se necesita (accesibilidad, replay).
+                msg.dataset.transcript = text;
+            }
+
             if (sender === 'bot') {
                 const speakBtn = document.createElement('button');
                 speakBtn.className = 'speak-btn';
-                speakBtn.innerHTML = 'ðŸ”Š';
+                speakBtn.innerHTML = '🔊';
+                speakBtn.title = 'Volver a escuchar';
                 speakBtn.onclick = function() { speakMessage(text, this); };
                 msg.style.position = 'relative';
                 msg.appendChild(speakBtn);
             }
-            
+
             container.appendChild(msg);
-            
+
             if (buttons && buttons.length > 0 && sender === 'bot') {
                 const buttonsDiv = document.createElement('div');
                 buttonsDiv.className = 'buttons-container';
-                
+
                 buttons.forEach(btn => {
                     const optionBtn = document.createElement('button');
                     optionBtn.className = 'option-btn';
@@ -1312,10 +1350,10 @@
                     };
                     buttonsDiv.appendChild(optionBtn);
                 });
-                
+
                 container.appendChild(buttonsDiv);
             }
-            
+
             container.scrollTop = container.scrollHeight;
         }
         
@@ -1486,15 +1524,24 @@
             const container = document.getElementById('callMessages');
             const msg = document.createElement('div');
             const isError = sender === 'bot' && text.startsWith('Por favor, verifica');
-            msg.className = isError ? 'call-message bot error' : `call-message ${sender}`;
-            msg.textContent = text;
+            // En modo llamada ocultamos el texto del bot (porque habla
+            // por voz). Los errores sí se muestran para que el usuario
+            // pueda leerlos.
+            const showText = sender !== 'bot' || isError;
+            if (showText) {
+                msg.className = isError ? 'call-message bot error' : `call-message ${sender}`;
+                msg.textContent = text;
+            } else {
+                msg.className = 'call-message bot bot-audio-only';
+                msg.dataset.transcript = text;
+            }
             container.appendChild(msg);
-            
+
             if (buttons && buttons.length > 0 && sender === 'bot') {
                 const buttonsDiv = document.createElement('div');
                 buttonsDiv.className = 'buttons-container';
                 buttonsDiv.id = 'callButtonsContainer';
-                
+
                 buttons.forEach(btn => {
                     const optionBtn = document.createElement('button');
                     optionBtn.className = 'option-btn';
@@ -1506,10 +1553,10 @@
                     };
                     buttonsDiv.appendChild(optionBtn);
                 });
-                
+
                 container.appendChild(buttonsDiv);
             }
-            
+
             container.scrollTop = container.scrollHeight;
         }
         
