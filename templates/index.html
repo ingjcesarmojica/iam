@@ -127,7 +127,8 @@
             z-index: 10;
         }
 
-        /* El GIF animado se muestra plano, grande y siempre visible */
+        /* El GIF animado se muestra plano, grande y se mezcla con el
+           negro del fondo (sin halo, sin sombras de color, sin marco). */
         .avatar img {
             display: block !important;
             width: 100% !important;
@@ -146,34 +147,12 @@
             text-indent: -9999px !important;
             visibility: visible !important;
             opacity: 1 !important;
-            /* Glow neón alrededor del GIF (no recorta nada) */
-            filter: drop-shadow(0 0 22px rgba(0, 255, 225, 0.55))
-                    drop-shadow(0 0 36px rgba(255, 0, 212, 0.30));
             animation: avatarBreathe 4s ease-in-out infinite;
         }
 
-        /* Halo neón rotatorio detrás del avatar */
+        /* Sin halo neón: el GIF se mezcla con el fondo negro. */
         .avatar::before {
-            content: '' !important;
-            position: absolute !important;
-            top: -10% !important;
-            left: -10% !important;
-            right: -10% !important;
-            bottom: -10% !important;
-            width: 120% !important;
-            height: 120% !important;
-            border-radius: 50%;
-            background: conic-gradient(
-                from 0deg,
-                rgba(0, 255, 225, 0.55),
-                rgba(170, 255, 0, 0.45),
-                rgba(255, 0, 212, 0.55),
-                rgba(0, 255, 225, 0.55)
-            );
-            filter: blur(28px);
-            z-index: -1 !important;
-            animation: neonSpin 6s linear infinite;
-            opacity: 0.85;
+            display: none !important;
         }
 
         @keyframes neonSpin {
@@ -181,9 +160,10 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Los pulse-rings quedan detrás del avatar */
+        /* Sin pulse-rings para que el GIF se mezcle limpio con el
+           fondo negro sin anillos decorativos. */
         .pulse-rings {
-            z-index: 1 !important;
+            display: none !important;
         }
 
         /* Separación entre avatar y textos del perfil */
@@ -191,38 +171,25 @@
             margin-top: 14px !important;
         }
 
-        /* Estados del avatar */
+        /* Estados del avatar: sin sombras de color, solo la animación
+           de respiracion/listen/speak para que el GIF se mantenga
+           integrado con el fondo negro. */
         .avatar.avatar--idle img {
-            filter: drop-shadow(0 0 22px rgba(0, 255, 225, 0.55))
-                    drop-shadow(0 0 36px rgba(255, 0, 212, 0.30));
+            /* Sin drop-shadow: el GIF se ve limpio sobre el fondo */
         }
 
         .avatar.avatar--listening img {
-            filter: drop-shadow(0 0 26px rgba(170, 255, 0, 0.75))
-                    drop-shadow(0 0 40px rgba(0, 255, 225, 0.50));
             animation: avatarListening 1.6s ease-in-out infinite;
         }
         .avatar.avatar--listening::before {
-            background: conic-gradient(
-                from 0deg,
-                rgba(170, 255, 0, 0.75),
-                rgba(0, 255, 225, 0.65),
-                rgba(170, 255, 0, 0.75)
-            );
+            display: none !important;
         }
 
         .avatar.avatar--speaking img {
-            filter: drop-shadow(0 0 28px rgba(255, 0, 212, 0.80))
-                    drop-shadow(0 0 44px rgba(170, 255, 0, 0.55));
             animation: avatarSpeaking 0.9s ease-in-out infinite;
         }
         .avatar.avatar--speaking::before {
-            background: conic-gradient(
-                from 0deg,
-                rgba(255, 0, 212, 0.75),
-                rgba(0, 255, 225, 0.65),
-                rgba(255, 0, 212, 0.75)
-            );
+            display: none !important;
         }
 
         @keyframes avatarBreathe {
