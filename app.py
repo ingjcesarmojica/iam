@@ -733,47 +733,33 @@ def chat():
 def _delegar_al_llm(message, nombre, ciudad, contexto_adicional=""):
     """Delega al LLM una pregunta que no podemos responder con datos locales.
     Combina el contexto base del adulto mayor con un contexto adicional
-    específico del tema. Retorna siempre un string útil (nunca vacío),
-    incluso si el LLM falla o devuelve una respuesta débil.
+    específico del tema. Deja que el LLM responda libremente sin
+    filtrar palabras clave (no descartamos respuestas que digan
+    honestamente "no estoy seguro", porque eso ya es una respuesta
+    útil y honesta).
     """
     # Prompt base humanizado para el LLM (corto, para respuestas rápidas)
     base_prompt = (
         "Eres IAM, asistente cálido para adultos mayores en Colombia. "
         "Habla en español, sin tecnicismos ni anglicismos. "
         f"Usuario: {nombre or 'adulto mayor'}. Ciudad: {ciudad or 'Colombia'}. "
-        "Canal: voz. Responde en 1-3 frases. Si no sabes algo, dilo con "
-        "honestidad y sugiere dónde consultar."
+        "Canal: voz. Responde en 1-3 frases para lo cotidiano o en 5-6 "
+        "frases si piden pasos o más detalle. Sé abierto y conversacional."
     )
     if contexto_adicional:
         base_prompt += "\n" + contexto_adicional
-
-    # Mensajes que indican que el LLM "no pudo" o no respondió nada útil.
-    respuestas_debiles = (
-        "no puedo", "no puedo ayudar", "no estoy seguro", "no tengo información",
-        "no dispongo", "como modelo de lenguaje", "as an ai", "as a language model",
-        "i cannot", "i don't know", "i'm not able",
-    )
 
     llm_resp = ""
     try:
         llm_resp = get_llm_response(message, context=base_prompt) or ""
     except Exception as e:
         app.logger.error(f"LLM error en _delegar_al_llm: {e}")
+        return _respuesta_amable_fallback(message, nombre, contexto_adicional)
 
-    # Verificar si la respuesta es útil
     texto_limpio = llm_resp.strip()
-    es_debil = (
-        not texto_limpio
-        or len(texto_limpio) < 20
-        or any(p in texto_limpio.lower() for p in respuestas_debiles)
-    )
 
-    if es_debil:
-        # El LLM no dio nada útil: generamos una respuesta amable con sugerencias
-        app.logger.info(
-            f"LLM respuesta debil o vacia, usando fallback amable. "
-            f"Pregunta: '{message[:80]}'"
-        )
+    # Si el LLM devolvió vacío, usamos el fallback.
+    if not texto_limpio:
         return _respuesta_amable_fallback(message, nombre, contexto_adicional)
 
     return texto_limpio
@@ -781,38 +767,40 @@ def _delegar_al_llm(message, nombre, ciudad, contexto_adicional=""):
 
 def _respuesta_amable_fallback(message, nombre, contexto_adicional=""):
     """Respuesta de fallback cuando el LLM falla o da una respuesta débil.
-    Siempre devuelve algo cálido y útil para el adulto mayor.
+    Devuelve algo cálido y útil para el adulto mayor, sin sonar repetitivo.
     """
-    nombre = nombre or "amigo"
+    nombre = nombre or ""
     # Identificar el tema por el contexto adicional
     tema = ""
-    if "clima" in contexto_adicional.lower():
+    ctx = contexto_adicional.lower()
+    if "clima" in ctx:
         tema = "el clima"
-    elif "dólar" in contexto_adicional.lower() or "euro" in contexto_adicional.lower():
-        tema = "el precio del"
-    elif "café" in contexto_adicional.lower() or "cafe" in contexto_adicional.lower():
+    elif "dólar" in ctx or "euro" in ctx:
+        tema = "el precio del dólar o euro"
+    elif "café" in ctx:
         tema = "el precio del café"
-    elif "noticias" in contexto_adicional.lower():
-        tema = "las noticias"
-    elif "música" in contexto_adicional.lower() or "musica" in contexto_adicional.lower():
+    elif "noticias" in ctx:
+        tema = "las noticias del momento"
+    elif "música" in ctx:
         tema = "la música"
-    elif "radio" in contexto_adicional.lower():
+    elif "radio" in ctx:
         tema = "la radio"
-    elif "tv" in contexto_adicional.lower() or "televisión" in contexto_adicional.lower():
+    elif "televisión" in ctx:
         tema = "la televisión"
 
     if tema:
         return (
-            f"Disculpe, {nombre}, no alcancé a consultar {tema} en este momento. "
-            f"Le recomiendo sintonizar un noticiero de confianza o preguntarle a un familiar. "
+            f"Disculpe, no alcancé a consultar {tema} en este momento. "
+            f"Le recomiendo sintonizar un noticiero o preguntarle a un familiar de confianza. "
             f"¿Le puedo ayudar con algo más?"
         )
 
-    # Fallback genérico para preguntas generales no reconocidas
+    # Fallback genérico más abierto y útil.
     return (
-        f"Disculpe, {nombre}, no alcancé a encontrar una respuesta exacta. "
-        f"Le recomiendo consultarlo con un familiar de confianza o en su noticiero. "
-        f"Mientras tanto, ¿hay algo más en lo que le pueda colaborar?"
+        f"No estoy seguro de tener una respuesta exacta para eso en este momento. "
+        f"¿Quiere que intentemos de otra forma o lo hablamos con calma? "
+        f"Si lo prefiere, puedo sugerirte dónde buscar: un familiar, un noticiero "
+        f"o una consulta específica."
     )
 
 
@@ -853,18 +841,8 @@ def _responder_conversacion_libre(state, message):
                 return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
         except Exception as e:
             app.logger.warning(f"obtener_clima falló: {e}")
-        # Si la API falla, delegamos al LLM
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                f"El usuario pregunta por el clima de {ciudad}. "
-                "No tienes acceso a datos meteorológicos en tiempo real, así que "
-                "responde con amabilidad: explica que no pudiste consultar el clima "
-                "ahora, sugiere cómo enterarse (sintonizar noticiero, salir un momento), "
-                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
-                "lenguaje cálido y sin tecnicismos."
-            ),
-        )
+        # Si la API falla, delegamos al LLM para que responda libremente.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
@@ -887,17 +865,8 @@ def _responder_conversacion_libre(state, message):
                 return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
         except Exception as e:
             app.logger.warning(f"obtener_indicadores falló: {e}")
-        nombre_moneda = "dólar" if intencion == "dolar" else "euro"
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                f"El usuario pregunta por el precio del {nombre_moneda} en pesos colombianos. "
-                "No tienes acceso a tasas de cambio en tiempo real. Responde con amabilidad: "
-                "explica que no pudiste consultar el precio ahora, recomienda consultar el "
-                "Banco de la República, y pregunta si hay algo más en lo que puedas ayudar. "
-                "Máximo 2 frases, lenguaje cálido y sin tecnicismos."
-            ),
-        )
+        # Si la API falla, el LLM responde libremente.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
@@ -918,155 +887,74 @@ def _responder_conversacion_libre(state, message):
                 return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
         except Exception as e:
             app.logger.warning(f"obtener_precio_cafe falló: {e}")
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario pregunta por el precio del café en Colombia. "
-                "No tienes acceso al precio de referencia en tiempo real. "
-                "Responde con amabilidad: explica que no pudiste consultar el precio ahora, "
-                "recomienda consultar la Federación Nacional de Cafeteros, "
-                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
-                "lenguaje cálido y sin tecnicismos."
-            ),
-        )
+        # Si la API falla, el LLM responde libremente.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "noticias":
+        titulares = []
         try:
-            titulares = obtener_noticias_colombia(max_items=3)
-            if titulares:
-                intro = "Estas son las noticias más importantes de hoy en Colombia:"
-                partes = [intro]
-                for i, t in enumerate(titulares, 1):
-                    partes.append(f"{i}. {t}")
-                response = " ".join(partes)
-                save_conversation(response, "conversacion_libre", message)
-                return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
+            titulares = obtener_noticias_colombia(max_items=4)
         except Exception as e:
             app.logger.error(f"Error al obtener noticias: {e}")
-        # Si no hay titulares o falló la API, delegamos al LLM
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario pregunta por las noticias de hoy en Colombia. "
-                "No tienes acceso a titulares en tiempo real. Responde con amabilidad: "
-                "explica que no pudiste consultar las noticias ahora, recomienda sintonizar "
-                "Caracol Radio o RCN Noticias para enterarse de lo más importante del día, "
-                "y pregunta si hay algo más en lo que puedas ayudar. Máximo 2 frases, "
-                "lenguaje cálido y sin tecnicismos."
-            ),
-        )
+
+        if titulares:
+            intro = "Estas son las noticias más importantes hoy en Colombia:"
+            partes = [intro]
+            for i, t in enumerate(titulares, 1):
+                partes.append(f"{i}. {t}")
+            response = " ".join(partes)
+        else:
+            # Si el RSS falla, dejamos que el LLM responda libremente.
+            response = _delegar_al_llm(message, nombre, ciudad)
+
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "musica":
-        # Delegamos al LLM para que sugiera algo basado en lo que pide el usuario.
-        # Si el LLM no devuelve nada útil, fallback amable.
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario quiere música. IAM no controla un dispositivo de música, "
-                "pero puede conversar sobre géneros, cantantes o canciones. "
-                "Si menciona un género o artista, comenta con cariño lo que sabe y sugiere "
-                "que le pida a un familiar que le ponga esa música en el dispositivo. "
-                "Si solo dice 'quiero música', sugiere amablemente algunos géneros "
-                "populares entre adultos mayores en Colombia (boleros, música andina, "
-                "tropical clásica, baladas) y pregunta cuál le gustaría."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "radio":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario quiere sintonizar una emisora de radio. IAM no controla "
-                "el radio, pero puede conversar sobre emisoras populares en Colombia "
-                "(Caracol Radio, RCN Radio, La W, Radiónica, Bésame, Oxígeno, Tropicana). "
-                "Si menciona una, confirma con cariño y sugiere pedirle a un familiar "
-                "que la sintonice. Si solo dice 'quiero radio', sugiere algunas opciones "
-                "populares según el gusto (noticias, boleros, música del recuerdo) y "
-                "pregunta cuál prefiere."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "tv":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario quiere ver un canal de televisión. IAM no controla la TV, "
-                "pero puede conversar sobre canales colombianos populares (Caracol, RCN, "
-                "Canal 1, Señal Colombia). Si menciona uno, confirma con cariño y sugiere "
-                "pedirle a un familiar que lo sintonice. Si solo dice 'quiero ver tele' o "
-                "'poner la tele', sugiere algunas opciones (Caracol, RCN, canal de "
-                "noticias) y pregunta cuál prefiere."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "conversacion":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "El usuario quiere conversar. Acompáñale con calidez. Si "
-                "menciona soledad o tristeza, valida sus sentimientos y "
-                "sugiere con cariño mantener contacto con su familia."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "salud":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "Eres enfermero. Orienta, explica mediciones, recuerda tomas "
-                "y aconseja sobre bienestar a una persona mayor. Valores "
-                "útiles: PA normal <120/<80, glucosa ayunas 70-99, "
-                "fiebre desde 38, saturación 95-100% (baja <92% "
-                "preocupante). No cambies dosis ni diagnostiques. Si es "
-                "claramente urgente (dolor de pecho intenso, falta severa "
-                "de aire, pérdida de conciencia, sangrado abundante), "
-                "recomienda llamar al 123."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo: el system prompt
+        # principal ya lo guía como enfermero. Dejamos que responda
+        # libremente según su conocimiento.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "brigadista":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "Eres brigadista. Si la persona está en una emergencia "
-                "activa (temblor, incendio, inundación, caída grave), "
-                "primero la instrucción de seguridad y llamar al 123. "
-                "Para protocolos da pasos cortos y numerados (ej. "
-                "terremoto: agacharse, cubrirse cabeza/cuello, sujetarse). "
-                "Kit de emergencia: agua, medicamentos, documentos, "
-                "linterna, radio, silbato, cobija. No inventes números "
-                "de emergencia de otros países."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo: el system prompt
+        # principal ya lo guía como brigadista.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
     if intencion == "hogar":
-        response = _delegar_al_llm(
-            message, nombre, ciudad,
-            contexto_adicional=(
-                "Eres técnico doméstico. Guía tareas simples y seguras "
-                "(foco, breaker, fuga visible, pila, filtro, wifi, control) "
-                "en pasos cortos. Para gas, electricidad de alto riesgo o "
-                "estructuras (techos, escaleras), recomienda llamar a un "
-                "profesional o familiar. Prevención de caídas: tapetes "
-                "fijos, buena luz, pasamanos, no subirse a sillas."
-            ),
-        )
+        # Delegar al LLM sin prompt restrictivo: el system prompt
+        # principal ya lo guía como técnico doméstico prudente.
+        response = _delegar_al_llm(message, nombre, ciudad)
         save_conversation(response, "conversacion_libre", message)
         return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
 
