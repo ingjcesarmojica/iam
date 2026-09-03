@@ -200,6 +200,124 @@ def clasificar_intencion(texto):
     return None
 
 
+# ── Ciudades principales de Colombia (para detectar la ciudad en el
+# mensaje del usuario cuando pregunta el clima, etc.) ────────────────
+# Diccionario normalizado -> nombre bonito. La lista interna incluye
+# variantes sin acento y en minúsculas para hacer match robusto.
+_CIUDADES_VARIANTES = [
+    ("bogotá", "Bogotá"),
+    ("bogota", "Bogotá"),
+    ("medellín", "Medellín"),
+    ("medellin", "Medellín"),
+    ("cali", "Cali"),
+    ("barranquilla", "Barranquilla"),
+    ("cartagena", "Cartagena"),
+    ("cúcuta", "Cúcuta"),
+    ("cucuta", "Cúcuta"),
+    ("bucaramanga", "Bucaramanga"),
+    ("pereira", "Pereira"),
+    ("manizales", "Manizales"),
+    ("ibagué", "Ibagué"),
+    ("ibague", "Ibagué"),
+    ("neiva", "Neiva"),
+    ("villavicencio", "Villavicencio"),
+    ("pasto", "Pasto"),
+    ("montería", "Montería"),
+    ("monteria", "Montería"),
+    ("sincelejo", "Sincelejo"),
+    ("popayán", "Popayán"),
+    ("popayan", "Popayán"),
+    ("valledupar", "Valledupar"),
+    ("tunja", "Tunja"),
+    ("riohacha", "Riohacha"),
+    ("quibdó", "Quibdó"),
+    ("quibdo", "Quibdó"),
+    ("armenia", "Armenia"),
+    ("palmira", "Palmira"),
+    ("buenaventura", "Buenaventura"),
+    ("tuluá", "Tuluá"),
+    ("tulua", "Tuluá"),
+    ("duitama", "Duitama"),
+    ("sogamoso", "Sogamoso"),
+    ("yopal", "Yopal"),
+    ("florencia", "Florencia"),
+    ("mocoa", "Mocoa"),
+    ("arauca", "Arauca"),
+    ("leticia", "Leticia"),
+    ("mitú", "Mitú"),
+    ("mitu", "Mitú"),
+    ("san andrés", "San Andrés"),
+    ("san andres", "San Andrés"),
+    ("providencia", "Providencia"),
+    ("santa marta", "Santa Marta"),
+    ("santamarta", "Santa Marta"),
+    ("tumaco", "Tumaco"),
+    ("ipiales", "Ipiales"),
+    ("soacha", "Soacha"),
+    ("zipaquirá", "Zipaquirá"),
+    ("zipaquira", "Zipaquirá"),
+    ("girón", "Girón"),
+    ("giron", "Girón"),
+    ("barrancabermeja", "Barrancabermeja"),
+    ("chía", "Chía"),
+    ("chia", "Chía"),
+    ("mosquera", "Mosquera"),
+    ("facatativá", "Facatativá"),
+    ("facatativa", "Facatativá"),
+    ("funza", "Funza"),
+    ("madrid", "Madrid"),
+    ("cajicá", "Cajicá"),
+    ("cajica", "Cajicá"),
+    ("melgar", "Melgar"),
+    ("girardot", "Girardot"),
+    ("fusagasugá", "Fusagasugá"),
+    ("fusagasuga", "Fusagasugá"),
+    # Algunas ciudades grandes de Latinoamérica y otros países por si
+    # el usuario vive en otra ciudad.
+    ("lima", "Lima"),
+    ("quito", "Quito"),
+    ("santiago", "Santiago"),
+    ("buenos aires", "Buenos Aires"),
+    ("ciudad de méxico", "Ciudad de México"),
+    ("caracas", "Caracas"),
+    ("la paz", "La Paz"),
+    ("montevideo", "Montevideo"),
+    ("asunción", "Asunción"),
+    ("asuncion", "Asunción"),
+    ("guayaquil", "Guayaquil"),
+    ("san josé", "San José"),
+    ("san jose", "San José"),
+    ("panamá", "Panamá"),
+    ("panama", "Panamá"),
+    ("barcelona", "Barcelona"),
+    ("miami", "Miami"),
+    ("orlando", "Orlando"),
+    ("nueva york", "Nueva York"),
+    ("new york", "Nueva York"),
+]
+# Lista para el patrón regex (ordenada por longitud descendente para
+# que las ciudades compuestas matcheen antes que sus prefijos).
+_CIUDADES_NORM = sorted([v[0] for v in _CIUDADES_VARIANTES], key=len, reverse=True)
+# Mapa de nombre normalizado -> nombre bonito.
+_CIUDADES_NORM_TO_BONITO = {v[0]: v[1] for v in _CIUDADES_VARIANTES}
+
+
+def detectar_ciudad_en_texto(texto):
+    """Busca el nombre de una ciudad conocida dentro del texto.
+    Devuelve el nombre bonito de la ciudad detectado o None si no
+    encuentra ninguna. Solo usamos esta función para detectar
+    ciudades mencionadas explícitamente por el usuario.
+    """
+    if not texto:
+        return None
+    texto_norm = texto.lower().strip()
+    for ciudad in _CIUDADES_NORM:
+        patron = r"(?:^|\b)" + re.escape(ciudad) + r"(?:\b|$)"
+        if re.search(patron, texto_norm):
+            return _CIUDADES_NORM_TO_BONITO[ciudad]
+    return None
+
+
 PASOS = {
     "saludo_inicial": {
         "id": "saludo_inicial",

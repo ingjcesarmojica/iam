@@ -692,6 +692,22 @@ def chat():
             response = formatear_mensaje(paso, {"momento_del_dia": momento})
             return jsonify({"response": response, "end_call": False, "buttons": None, "step": "saludo_inicial"})
 
+        # ── Detección automática de ciudad en el mensaje ──────────────
+        # Si el usuario menciona una ciudad colombiana conocida (por
+        # ejemplo "el clima en Bogotá"), la guardamos en el estado
+        # para no volver a preguntarla después. Esto evita que IAM
+        # pregunte "¿en qué ciudad se encuentra?" en cada consulta.
+        try:
+            from guion import detectar_ciudad_en_texto
+
+            ciudad_detectada = detectar_ciudad_en_texto(message)
+            if ciudad_detectada and not state.get("caller_ciudad"):
+                state["caller_ciudad"] = ciudad_detectada
+                save_call_state(state)
+                app.logger.info(f"Ciudad detectada y guardada: {ciudad_detectada}")
+        except Exception as e:
+            app.logger.warning(f"Error detectando ciudad: {e}")
+
         # ── Detección de despedida y emergencia en cualquier punto ─────
         if paso_actual_id not in ["saludo_inicial", "despedida"]:
             intencion = clasificar_intencion(message)
@@ -843,7 +859,19 @@ def _responder_conversacion_libre(state, message):
 
     if intencion == "clima":
         if not ciudad:
-            response = "Con gusto le cuento el clima. ¿En qué ciudad se encuentra?"
+            # Si no detectamos ciudad en el mensaje, dejamos que el LLM
+            # responda libremente: puede inferir el clima aproximado,
+            # pedir la ciudad con amabilidad o sugerir cómo enterarse.
+            response = _delegar_al_llm(
+                message, nombre, ciudad,
+                contexto_adicional=(
+                    "El usuario pregunta por el clima pero no mencionó "
+                    "en qué ciudad se encuentra. Pídele con amabilidad "
+                    "el nombre de su ciudad o municipio y dile que "
+                    "mientras tanto puede asomarse a la ventana o "
+                    "escuchar el noticiero para enterarse del tiempo."
+                ),
+            )
             save_conversation(response, "conversacion_libre", message)
             return jsonify({"response": response, "end_call": False, "buttons": None, "step": "conversacion_libre"})
         try:
