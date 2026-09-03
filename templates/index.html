@@ -568,6 +568,18 @@
             color: #ffffff;
             border-bottom-right-radius: 4px;
         }
+
+        /* Mensaje del usuario en modo llamada sin texto visible
+           (conversacion voz a voz). Solo deja una pequena marca
+           visual para indicar que la persona esta hablando. */
+        .call-message.user.user-audio-only {
+            background: transparent;
+            color: transparent;
+            border: 1px dashed rgba(37, 211, 102, 0.35);
+            padding: 4px 8px;
+            min-height: 22px;
+            min-width: 60px;
+        }
         
         .call-controls {
             display: flex;
@@ -1306,20 +1318,21 @@
             const isError = sender === 'bot' && text.startsWith('Por favor, verifica');
             msg.className = isError ? 'message bot error' : `message ${sender}`;
 
-            // En modo chat siempre mostramos el texto; en modo llamada
-            // solo lo mostramos si el emisor es el usuario o si es un
-            // mensaje de error que conviene ver.
-            const showText = !inCallMode || sender !== 'bot';
+            // En modo chat siempre mostramos el texto. En modo llamada
+            // (voz a voz) ocultamos tanto el texto del bot como el del
+            // usuario para no saturar visualmente al adulto mayor.
+            // Solo mostramos los mensajes de error.
+            const showText = !inCallMode || isError;
             if (showText) {
                 const textSpan = document.createElement('span');
                 textSpan.textContent = text;
                 msg.appendChild(textSpan);
             } else {
-                // Marcamos el contenedor para que tenga un tamaño mínimo
-                // y se vea el botón de speaker aunque no haya texto.
+                // Marcamos el contenedor para indicar que es solo audio
+                // y guardamos el texto como data-attribute (accesibilidad,
+                // replay).
                 msg.classList.add('bot-audio-only');
-                // Guardamos el texto como data-attribute para que esté
-                // disponible si se necesita (accesibilidad, replay).
+                if (sender === 'user') msg.classList.add('user-audio-only');
                 msg.dataset.transcript = text;
             }
 
@@ -1524,15 +1537,18 @@
             const container = document.getElementById('callMessages');
             const msg = document.createElement('div');
             const isError = sender === 'bot' && text.startsWith('Por favor, verifica');
-            // En modo llamada ocultamos el texto del bot (porque habla
-            // por voz). Los errores sí se muestran para que el usuario
-            // pueda leerlos.
-            const showText = sender !== 'bot' || isError;
+            // En modo llamada (voz a voz) ocultamos tanto el texto del
+            // bot como el del usuario. Solo mostramos los mensajes de
+            // error para que el adulto mayor pueda leerlos.
+            const showText = isError;
             if (showText) {
-                msg.className = isError ? 'call-message bot error' : `call-message ${sender}`;
+                msg.className = 'call-message bot error';
                 msg.textContent = text;
-            } else {
+            } else if (sender === 'bot') {
                 msg.className = 'call-message bot bot-audio-only';
+                msg.dataset.transcript = text;
+            } else {
+                msg.className = 'call-message user user-audio-only';
                 msg.dataset.transcript = text;
             }
             container.appendChild(msg);
