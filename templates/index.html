@@ -664,27 +664,72 @@
         .message.typing {
             background: #0a2f57;
         }
-        
-        .typing-dots {
+
+        /* Indicador de "IAM esta pensando" */
+        .thinking-wrap {
             display: flex;
-            gap: 4px;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
             padding: 4px 0;
         }
-        
+
+        .thinking-label {
+            font-size: 11px;
+            color: rgba(0, 255, 225, 0.85);
+            letter-spacing: 1.2px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 6px;
+            padding: 4px 0;
+            align-items: center;
+        }
+
         .typing-dots span {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.6);
+            background: rgba(0, 255, 225, 0.85);
+            box-shadow: 0 0 8px rgba(0, 255, 225, 0.5);
             animation: typingBounce 1.4s infinite ease-in-out both;
         }
-        
+
         .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
         .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
-        
+
         @keyframes typingBounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+            0%, 80%, 100% { transform: scale(0.4); opacity: 0.5; }
+            40% { transform: scale(1.1); opacity: 1; }
+        }
+
+        /* Estilo del indicador en modo llamada */
+        .call-message.bot.thinking {
+            background: rgba(10, 47, 87, 0.5);
+            border: 1px solid rgba(0, 255, 225, 0.35);
+            color: #ffffff;
+            align-self: center;
+            padding: 8px 14px;
+        }
+        .call-message.bot.thinking .thinking-wrap {
+            flex-direction: row;
+            gap: 10px;
+        }
+        .call-message.bot.thinking .thinking-label {
+            color: rgba(0, 255, 225, 0.95);
+        }
+
+        /* Animacion sutil del avatar mientras IAM esta pensando:
+           un brillo tenue y una respiracion un poco mas rapida. */
+        .avatar.avatar--thinking img {
+            animation: avatarThinking 1.4s ease-in-out infinite;
+        }
+        @keyframes avatarThinking {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50%      { transform: scale(1.06); filter: brightness(1.18); }
         }
         
         .chat-input-area {
@@ -1345,20 +1390,33 @@
         }
         
         function showTyping() {
-            const container = document.getElementById('chatMessages');
+            // Detectar contenedor segun el modo actual (chat o llamada).
+            const inCallMode = (typeof currentMode !== 'undefined' && currentMode === 'call');
+            const containerId = inCallMode ? 'callMessages' : 'chatMessages';
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            // Si ya hay un indicador, no duplicarlo.
+            if (document.getElementById('typingIndicator')) return;
             const typing = document.createElement('div');
-            typing.className = 'message bot typing';
+            typing.className = inCallMode ? 'call-message bot thinking' : 'message bot typing';
             typing.id = 'typingIndicator';
-            typing.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+            typing.innerHTML =
+                '<div class="thinking-wrap">' +
+                '  <div class="thinking-label">IAM está pensando</div>' +
+                '  <div class="typing-dots"><span></span><span></span><span></span></div>' +
+                '</div>';
             container.appendChild(typing);
             container.scrollTop = container.scrollHeight;
-            document.getElementById('pulseRings').classList.add('active');
+            // Marcar el avatar como pensando para una animacion sutil.
+            const avatar = document.querySelector('.avatar');
+            if (avatar) avatar.classList.add('avatar--thinking');
         }
-        
+
         function hideTyping() {
             const typing = document.getElementById('typingIndicator');
             if (typing) typing.remove();
-            document.getElementById('pulseRings').classList.remove('active');
+            const avatar = document.querySelector('.avatar');
+            if (avatar) avatar.classList.remove('avatar--thinking');
         }
         
         function stopCurrentAudio() {
@@ -1551,13 +1609,14 @@
         function sendCallMessage(message, action = null) {
             if (!isCalling) return;
             killAllCallAudio();
-            
+
             document.getElementById('statusIndicator').textContent = "Respondiendo...";
             if (message) addCallMessage(message, 'user');
-            
+            showTyping();
+
             var body = { message: message || '' };
             if (action) body.action = action;
-            
+
             fetch(CHAT_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1565,6 +1624,7 @@
             })
             .then(function(response) { return response.json(); })
             .then(function(data) {
+                hideTyping();
                 if (!isCalling) return;
                 if (data.error) {
                     showError("Error procesando tu mensaje.");
@@ -1577,6 +1637,7 @@
                 callSpeak(data.response, data.end_call, hasButtons);
             })
             .catch(function() {
+                hideTyping();
                 if (!isCalling) return;
                 showError("Error de conexión.");
                 callPromptRetry();
@@ -1586,10 +1647,11 @@
         function sendCallButtonAction(action, texto) {
             if (!isCalling) return;
             killAllCallAudio();
-            
+
             document.getElementById('statusIndicator').textContent = "Respondiendo...";
             addCallMessage(texto, 'user');
-            
+            showTyping();
+
             fetch(CHAT_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1597,6 +1659,7 @@
             })
             .then(function(response) { return response.json(); })
             .then(function(data) {
+                hideTyping();
                 if (!isCalling) return;
                 if (data.error) {
                     showError("Error procesando tu mensaje.");
